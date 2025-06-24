@@ -1,0 +1,27 @@
+{
+    "process": "swanemr-waveheight-retriever-process",
+    "payload": {
+        "inputs": {
+            "debug": true,
+            "async": true,
+            "cron_invocation": true,
+            
+            "token": null,
+            
+            "lat_range": [ 43.92, 44.77 ],
+            "long_range": [ 12.20, 12.83 ],
+
+            "sample_points": [
+                [ 12.45212, 44.17474 ],
+                [ 12.52399, 44.12090 ],
+                [ 12.65616, 44.02717 ],
+                [ 12.71269, 43.98055 ],
+                [ 12.81039, 43.96617 ],
+                [ 12.86841, 43.94087 ]
+            ],
+            
+            "time_range": null,
+            "strict_time_range": true
+        }
+    }
+}

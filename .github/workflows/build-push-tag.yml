@@ -1,0 +1,79 @@
+name: Test application
+on:
+  push:
+    tags: ["remote-v*"]
+
+jobs:
+  build-application:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    
+    - name: Extract Git Tag
+      id: extract-tag
+      run: echo "tag=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+    - name: Build and Push Docker Image
+      env:
+        ECR_REPO: ${{ secrets.ECR_REPO }}
+        TAG: ${{ env.tag }}
+      run: |
+        echo "Building and pushing Docker image with tag: $TAG"
+        docker build --build-arg AWS_KEY=${{ secrets.AWS_ACCESS_KEY_ID }} \
+                      --build-arg AWS_SECRET_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+                      --build-arg AWS_REGION=${{ secrets.AWS_REGION }} -t $ECR_REPO:${GITHUB_SHA::8} .
+        docker tag $ECR_REPO:${GITHUB_SHA::8} $ECR_REPO:$TAG
+        docker tag $ECR_REPO:${GITHUB_SHA::8} $ECR_REPO:latest
+        docker push $ECR_REPO:${GITHUB_SHA::8}
+        docker push $ECR_REPO:$TAG
+        docker push $ECR_REPO:latest
+    
+    # - name: Create New Task Definition Revision and Deploy
+    #   env:
+    #     CLUSTER_NAME: DevSaferPlacesCluster
+    #     SERVICE_NAME: dev-ead-api
+    #     TASK_DEFINITION: ead-dev
+    #     ECR_REPO: ${{ secrets.ECR_REPO }}
+    #     IMAGE_TAG: ${{ env.tag }}
+    #   run: |
+    #     echo "Fetching current task definition..."
+    #     CURRENT_TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition $TASK_DEFINITION)
+        
+    #     echo "Updating task definition with new image..."
+    #     NEW_TASK_DEFINITION=$(echo $CURRENT_TASK_DEFINITION | \
+    #       jq --arg IMAGE "$ECR_REPO:$IMAGE_TAG" \
+    #         '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.status, .revision, .taskDefinitionArn)')
+        
+    #     echo "$NEW_TASK_DEFINITION" > new-task-definition.json
+        
+    #     echo "Registering new task definition revision..."
+    #     NEW_TASK_DEFINITION_ARN=$(aws ecs register-task-definition --cli-input-json file://new-task-definition.json | jq -r '.taskDefinition.taskDefinitionArn')
+        
+    #     echo "Updating ECS service with new task definition revision..."
+    #     aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $NEW_TASK_DEFINITION_ARN
+        
+    #     echo "Deployment initiated for service $SERVICE_NAME with task definition $NEW_TASK_DEFINITION_ARN."
+
+    - name: Run ECS Task
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        CLUSTER_NAME: DevSaferPlacesCluster
+        SERVICE_NAME: pygeoapi-directed-service
+      run: |
+        aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
+      
+

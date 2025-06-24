@@ -1,0 +1,1 @@
+from .barriers_rest_service import BarrierRestService

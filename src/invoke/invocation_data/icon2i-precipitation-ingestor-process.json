@@ -1,0 +1,15 @@
+{
+    "process": "icon2i-precipitation-ingestor-process",
+    "payload": {
+        "inputs": {
+            "debug": true,
+            "async": true,
+            "cron_invocation": true,
+            
+            "token": null,
+            
+            "strict_time_range": false,
+            "forecast_run": null
+        }
+    }
+}

@@ -1,0 +1,21 @@
+{
+    "process": "arpae-realtime-process",
+    "payload": {
+        "inputs": {
+            "debug": true,
+            "async": true,
+            "cron_invocation": true,
+            
+            "token": null,
+            
+            "lat_range": [ 43.92, 44.77 ],
+            "long_range": [ 12.20, 12.83 ],
+
+            "time_range": null,
+            "strict_time_range": false,
+            "variable_codes": [
+                "B13011"
+            ]
+        }
+    }
+}

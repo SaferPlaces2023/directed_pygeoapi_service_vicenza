@@ -1,0 +1,22 @@
+{
+    "process": "meteoblue-precipitation-retriever-process",
+    "payload": {
+        "inputs": {
+            "debug": true,
+            "async": true,
+            "cron_invocation": true,
+            
+            "token": null,
+            
+            "service": "basic-5min",
+
+            "lat_range": [ 43.92, 44.77 ],
+            "long_range": [ 12.20, 12.83 ],
+
+            "grid_res": 4000,
+            
+            "time_range": null,
+            "strict_time_range": true
+        }
+    } 	
+}

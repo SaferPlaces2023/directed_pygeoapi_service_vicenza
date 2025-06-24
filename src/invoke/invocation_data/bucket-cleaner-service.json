@@ -1,0 +1,15 @@
+{
+    "process": "bucket-cleaner-service",
+    "payload": {
+        "inputs": {
+            "debug": true,
+            "async": true,
+            "cron_invocation": true,
+            
+            "token": null,
+
+            "directories": null,
+            "thresh_date": null
+        }
+    }
+}
