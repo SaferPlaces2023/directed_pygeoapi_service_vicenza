@@ -35,7 +35,6 @@ setuptools.setup(
         "geopandas",
         "rasterio",
         "python-crontab",
-        "duckdb",
-        "safer-buildings @ git+https://github.com/SaferPlaces2023/safer-buildings.git"
+        "duckdb"
     ]
 )

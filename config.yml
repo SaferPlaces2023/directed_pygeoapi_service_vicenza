@@ -102,16 +102,6 @@ resources:
 
 
 
-    arpae-realtime-process:
-        type: process
-        processor:
-            name: saferplacesapi.ArpaeRealtimeProcessor
-
-    hera-radar-rainfall-process:
-        type: process
-        processor:
-            name: saferplacesapi.HeraRadarRainfallProcessor
-
     dpc-radar-rainfall-process:
         type: process
         processor:
@@ -128,28 +118,6 @@ resources:
         type: process
         processor:
             name: saferplacesapi.ICON2IPrecipitationRetrieverProcessor
-
-
-    swanemr-waveheight-ingestor-process:
-        type: process
-        processor:
-            name: saferplacesapi.SwanemrWaveHeightIngestorProcessor
-
-    swanemr-waveheight-retriever-process:
-        type: process
-        processor:
-            name: saferplacesapi.SwanemrWaveHeightRetrieverProcessor
-
-
-    adriac-sealevel-ingestor-process:
-        type: process
-        processor:
-            name: saferplacesapi.AdriacSeaLevelIngestorProcessor
-
-    adriac-sealevel-retriever-process:
-        type: process
-        processor:
-            name: saferplacesapi.AdriacSeaLevelRetrieverProcessor
 
 
     meteoblue-precipitation-retriever-process:
@@ -169,11 +137,6 @@ resources:
         type: process
         processor:
             name: saferplacesapi.BarrierRestService
-            
-    safer-buildings-service:
-        type: process
-        processor:
-            name: saferplacesapi.SaferBuildingsService
 
     avaliable-data-service:
         type: process

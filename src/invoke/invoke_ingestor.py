@@ -45,28 +45,10 @@ floor_to_multiple = lambda num, mul: num - (num % mul)
 dt2iso = lambda dt: dt.strftime('%Y-%m-%dT%H:%M:%S')
 d2iso = lambda d: d.strftime('%Y-%m-%d')
 
-if ingestor_process == 'hera-radar-rainfall-process':
-    round_time = current_utc_datetime.replace(minute=floor_to_multiple(current_utc_datetime.minute, 5), second=0, microsecond=0)
-    start_time = round_time - datetime.timedelta(hours = 5)
-    end_time = round_time - datetime.timedelta(minutes = 5)
-    runtime_params['time_range'] = [dt2iso(start_time), dt2iso(end_time)]
-
-elif ingestor_process == 'dpc-radar-rainfall-process':
+if ingestor_process == 'dpc-radar-rainfall-process':
     round_time = current_utc_datetime.replace(minute=floor_to_multiple(current_utc_datetime.minute, 5), second=0, microsecond=0)
     min_delay = 10 
     start_time = round_time - datetime.timedelta(hours = 5, minutes=min_delay)
-    end_time = round_time - datetime.timedelta(minutes = min_delay)
-    runtime_params['time_range'] = [dt2iso(start_time), dt2iso(end_time)]
-
-elif ingestor_process == 'arpae-realtime-process':
-    round_time = current_utc_datetime.replace(minute=floor_to_multiple(current_utc_datetime.minute, 5), second=0, microsecond=0)
-    if 'B13011' in payload['inputs']['variable_codes'] or 'B13215' in payload['inputs']['variable_codes']:
-        min_delay = 15
-    if 'B22037' in payload['inputs']['variable_codes']:
-        min_delay = 30 
-    if 'B22001' in payload['inputs']['variable_codes'] or 'B22070' in payload['inputs']['variable_codes']:
-        min_delay = 40 
-    start_time = round_time - datetime.timedelta(hours = 12, minutes=min_delay)
     end_time = round_time - datetime.timedelta(minutes = min_delay)
     runtime_params['time_range'] = [dt2iso(start_time), dt2iso(end_time)]
 
@@ -79,27 +61,7 @@ elif ingestor_process == 'icon2i-precipitation-retriever-process':
     start_time = round_time
     end_time = round_time + datetime.timedelta(hours = 5) 
     runtime_params['time_range'] = [dt2iso(start_time), dt2iso(end_time)]
-    
-elif ingestor_process == 'swanemr-waveheight-ingestor-process':
-    forecast_run = current_utc_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
-    runtime_params['forecast_run'] = [ dt2iso(forecast_run - datetime.timedelta(days=1)), dt2iso(forecast_run) ]
-
-elif ingestor_process == 'swanemr-waveheight-retriever-process':
-    round_time = current_utc_datetime.replace(minute=0, second=0, microsecond=0)
-    start_time = round_time
-    end_time = round_time + datetime.timedelta(hours = 5) 
-    runtime_params['time_range'] = [dt2iso(start_time), dt2iso(end_time)]
-    
-elif ingestor_process == 'adriac-sealevel-ingestor-process':
-    forecast_run = current_utc_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
-    runtime_params['forecast_run'] = [ dt2iso(forecast_run - datetime.timedelta(days=1)), dt2iso(forecast_run) ]
-    
-elif ingestor_process == 'adriac-sealevel-retriever-process':
-    round_time = current_utc_datetime.replace(minute=floor_to_multiple(current_utc_datetime.minute, 10), second=0, microsecond=0)
-    start_time = round_time
-    end_time = round_time + datetime.timedelta(hours = 5) 
-    runtime_params['time_range'] = [dt2iso(start_time), dt2iso(end_time)]
-    
+        
 elif ingestor_process == 'meteoblue-precipitation-retriever-process':
     round_time = current_utc_datetime.replace(minute=floor_to_multiple(current_utc_datetime.minute, 5), second=0, microsecond=0)
     start_time = round_time

@@ -1,5 +1,4 @@
 from .barriers_service import BarrierRestService
-from .safer_buildings_service import SaferBuildingsService
 from .avaliable_data_service import AvaliableDataService
 
 from .bucket_cleaner_service import BucketCleanerService
