@@ -426,7 +426,7 @@ class MeteobluePrecipitationRetrieverProcessor(BaseProcessor):
             }
             raise ProcessorExecuteError(str(err))
         
-        _processes_utils.garbage_filepaths(merged_raster_filepath, )
+        _processes_utils.garbage_folders(self.meteoblue_services['basic-5min']['data_folder'], self.meteoblue_services['basic-1h']['data_folder'])
         
         return mimetype, outputs
 

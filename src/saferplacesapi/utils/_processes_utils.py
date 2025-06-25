@@ -465,6 +465,15 @@ def update_avaliable_data_HIVE(provider, variable, datetimes, s3_uris, kw_featur
             )
 
 
+def garbage_folders(*folders):
+    """
+    Remove all files in folders from the filesystem (but not the folder itself).
+    """
+    folders = [fp if type(fp) is list else [fp] for fp in folders]
+    folders = [fp for fps in folders for fp in fps if type(fp) is str]
+    filepaths = [os.path.join(folder, f) for folder in folders for f in os.listdir(folder)]
+    garbage_filepaths(filepaths)
+
 def garbage_filepaths(*filepaths):
     """
     Remove the files from the filesystem.
@@ -474,7 +483,10 @@ def garbage_filepaths(*filepaths):
     for filepath in filepaths:
         if os.path.exists(filepath):
             try:
-                os.remove(filepath)
+                if os.path.isfile(filepath):
+                    os.remove(filepath)
+                elif os.path.isdir(filepath):
+                    os.rmdir(filepath)
             except Exception as e:
                 print(f"Error removing file {filepath}: {e}")
         else:
