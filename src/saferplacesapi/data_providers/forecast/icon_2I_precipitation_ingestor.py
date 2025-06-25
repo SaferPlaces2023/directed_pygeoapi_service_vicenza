@@ -112,7 +112,9 @@ class ICON2IPrecipitationIngestorProcessor(BaseProcessor):
         self.dataset_name = 'ICON_2I'
         self.variable_name = 'precipitation'
         
-        self._data_provider_service = 'https://dati-simc.arpae.it/opendata/icon_2I'
+        self.base_url = 'https://meteohub.mistralportal.it/api'
+        self.avaliable_data_url = f'{self.base_url}/datasets/ICON_2I_SURFACE_PRESSURE_LEVELS/opendata'
+        self.retrieve_data_url = lambda data_filename: f'{self.base_url}/opendata/{data_filename}'
         
         self._data_folder = os.path.join(os.getcwd(), f'{self.dataset_name}_ingested_data')
         if not os.path.exists(self._data_folder):
@@ -121,15 +123,19 @@ class ICON2IPrecipitationIngestorProcessor(BaseProcessor):
     
     
     def get_avaliable_forecast_runs(self):
-        run_date = datetime.datetime.today().replace(hour=12, minute=0, second=0, microsecond=0)
-        runs = [ run_date ]
-        for _ in range(14):  # INFO: try one week back
-            run_date -= datetime.timedelta(hours=12)
-            runs.append(run_date)
-        runs = runs[::-1]
-        request_file_names = self.get_icon2I_data_filenames(runs)
-        runs = [run for run, rf in zip(runs, request_file_names) if requests.head(f'{self._data_provider_service}/{rf}').status_code == 200]
-        return runs
+        
+        def parse_avaliable_data(avaliable_data_response):
+            avaliable_data = pd.DataFrame(avaliable_data_response.json())
+            avaliable_data['forecast_run'] = avaliable_data.apply(lambda row: datetime.datetime.fromisoformat(f'{row.date}T{row.run}'), axis=1)
+            return avaliable_data
+
+        avaliable_data_response = requests.get(self.avaliable_data_url)
+        if avaliable_data_response.status_code == 200:
+            avaliable_data = parse_avaliable_data(avaliable_data_response)
+        else:
+            print('Error while requesting avaliable data endpoint')
+
+        return avaliable_data
     
     
     def validate_parameters(self, data):
@@ -154,33 +160,29 @@ class ICON2IPrecipitationIngestorProcessor(BaseProcessor):
                 except Exception as err:
                     raise ProcessorExecuteError(f'Invalid forecast run "{rfr}. Must be a valid ISO format date string')
         else:
-            requested_forecast_run = self.get_avaliable_forecast_runs()
+            avaliable_data = self.get_avaliable_forecast_runs()
+            requested_forecast_run = avaliable_data.forecast_run.tolist()
         
         return strict_time_range, requested_forecast_run
     
     
     def ping_avaliable_runs(self, forecast_datetime_runs):
-        request_file_names = self.get_icon2I_data_filenames(forecast_datetime_runs)
-        for rf in request_file_names:
-            response = requests.head(f'{self._data_provider_service}/{rf}')
-            if response.status_code != 200:
-                return False
-        return True
+        avaliable_data = self.get_avaliable_forecast_runs()
+        avaliable_runs = avaliable_data.forecast_run.tolist()
+        return all(fdr in avaliable_runs for fdr in forecast_datetime_runs)
     
     
     def get_icon2I_data_filenames(self, forecast_datetime_runs):
-        request_files = []        
-        for fdr in forecast_datetime_runs:
-            datetime_run_file = f'icon_2I.{fdr.year}{fdr.month:02d}{fdr.day:02d}{fdr.hour:02d}00.grib'
-            request_files.append(datetime_run_file)
-        return request_files
+        avaliable_data = self.get_avaliable_forecast_runs()
+        forecast_runs_filenames = avaliable_data[avaliable_data.forecast_run.isin(forecast_datetime_runs)].filename.to_list()
+        return forecast_runs_filenames
     
     
     def download_icon2I_data(self, forecast_datetime_runs):
         request_file_names = self.get_icon2I_data_filenames(forecast_datetime_runs)
         icon2I_file_paths = []
         for rf in request_file_names:
-            response = requests.get(f'{self._data_provider_service}/{rf}', stream=True)
+            response = requests.get(self.retrieve_data_url(rf), stream=True)
             if response.status_code == 200:
                 rf_filename = os.path.join(self._data_folder, rf)
                 with open(rf_filename, "wb") as grib_file:
@@ -208,6 +210,9 @@ class ICON2IPrecipitationIngestorProcessor(BaseProcessor):
 
             for i,msg in enumerate(gmsg):
                 if msg.name == 'Total Precipitation':
+                    
+                    print('\n\n', f'Processing grib message {i+1}/{len(gmsg)} for dataset {ids+1}/{len(grib_dss)}', '\n\n')
+                    
                     values, lats, lons = msg.data()
                     times_range.append(ts + datetime.timedelta(hours=i))
 
@@ -235,6 +240,7 @@ class ICON2IPrecipitationIngestorProcessor(BaseProcessor):
         )
         ds = ds.sortby(['time', 'lat', 'lon'])
         ds[self.variable_name] = xr.where(ds[self.variable_name] < 0, 0, ds[self.variable_name])
+        ds = _processes_utils.ds2float32(ds)
         return ds
     
     
@@ -266,6 +272,8 @@ class ICON2IPrecipitationIngestorProcessor(BaseProcessor):
 
         outputs = {}
         try:
+            print('\n\n', 'Executing ICON-2I Precipitation Ingestor Process', '\n\n')
+            
             strict_time_range, forecast_datetime_runs = self.validate_parameters(data)
             
             if strict_time_range:
@@ -308,7 +316,7 @@ class ICON2IPrecipitationIngestorProcessor(BaseProcessor):
             }
             raise ProcessorExecuteError(str(err))
         
-        _processes_utils.garbage_filepaths(icon2I_file_paths)
+        _processes_utils.garbage_folders(self._data_folder)
         
         return mimetype, outputs
 
