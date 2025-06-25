@@ -169,7 +169,7 @@ class NowRadarRainfallProcessor(BaseProcessor):
         if time_delta % 5 != 0:
             raise ProcessorExecuteError('Time delta must be a multiple of 5')
         
-        lat_range, long_range, time_start, time_end, strict_time_range, out_format = _processes_utils.validate_parameters(data)
+        lat_range, long_range, time_start, time_end, _, out_format = _processes_utils.validate_parameters(data)
         
         if time_end is not None:
             if time_start - time_end > datetime.timedelta(hours=3):
@@ -178,7 +178,7 @@ class NowRadarRainfallProcessor(BaseProcessor):
         time_start = time_start.replace(minute=(time_start.minute // 5) * 5, second=0, microsecond=0)
         time_end = time_end.replace(minute=(time_end.minute // 5) * 5, second=0, microsecond=0) if time_end is not None else time_start + datetime.timedelta(hours=1)
 
-        return auth_token, lat_range, long_range, time_start, time_end, time_delta, strict_time_range, out_format
+        return auth_token, lat_range, long_range, time_start, time_end, time_delta, out_format
     
     
     def hypermeteo_request(self, auth_token, lat_range, long_range, time_start, time_end=None):
@@ -202,70 +202,126 @@ class NowRadarRainfallProcessor(BaseProcessor):
         return response
     
     
+    # def retrieve_data(self, auth_token, lat_range, long_range, time_start, time_end=None, timedelta_minutes=5):
+
+    #     delta_hours = timedelta_minutes // 60
+    #     delta_minutes = (timedelta_minutes - (delta_hours*60))
+
+    #     time_start = time_start.replace(
+    #         minute = (time_start.minute // delta_minutes) * delta_minutes if delta_hours==0 else 0,
+    #         second = 0,
+    #         microsecond = 0
+    #     )
+
+    #     time_end = time_end.replace(
+    #         hour = time_end.hour,
+    #         minute = ((time_end.minute // delta_minutes) * delta_minutes) if delta_hours==0 else 0,
+    #         second = 0,
+    #         microsecond = 0
+    #     )
+        
+    #     datetime_list = []
+    #     if time_end is not None:
+    #         current_time = time_start
+    #         while current_time <= time_end:
+    #             datetime_list.append(current_time)
+    #             current_time += datetime.timedelta(hours=delta_hours, minutes=delta_minutes)
+    #     else:
+    #         datetime_list.append(time_start)
+
+    #     filename_list = []
+    #     for moment in datetime_list:
+            
+    #         # TODO: Check if avaliable in S3
+            
+    #         response = self.hypermeteo_request(
+    #             auth_token = auth_token,
+    #             lat_range = lat_range,
+    #             long_range = long_range,
+    #             time_start = moment,
+    #             time_end = None
+    #         )
+
+    #         netcdf_filename = _processes_utils.get_netcdf_filename(self.dataset_name, self.variable_name, lat_range, long_range, moment)
+    #         tmp_filename = os.path.join(self._data_folder, netcdf_filename)
+    #         if response.ok:
+    #             _processes_utils.write_file_from_response(response, tmp_filename)
+    #             filename_list.append(tmp_filename)
+    #         else:
+    #             print(f'[{response.status_code}] - Error during data retrieving (file "{tmp_filename}"). Server response: {response.content.decode("utf-8")}')
+
+    #     return filename_list
+    
+    
+    # def build_dataset_for_files(self, data_filenames):
+    #     dss = [xr.open_dataset(df) for df in data_filenames]
+    #     ds = xr.concat(dss, dim='time')
+    #     ds = ds.assign_coords(
+    #         lat=np.round(ds.lat.values, 4),
+    #         lon=np.round(ds.lon.values, 4),
+    #     )
+    #     ds = ds.sortby('time')
+    #     values = ds[self.variable_name]
+    #     ds = ds.drop_dims('runtime')
+    #     ds[self.variable_name] = values[0]
+    #     ds = ds.drop_vars('runtime')
+    #     return ds
+    
     def retrieve_data(self, auth_token, lat_range, long_range, time_start, time_end=None, timedelta_minutes=5):
 
         delta_hours = timedelta_minutes // 60
-        delta_minutes = (timedelta_minutes - (delta_hours*60))
+        delta_minutes = (timedelta_minutes - (delta_hours * 60))
 
         time_start = time_start.replace(
-            minute = (time_start.minute // delta_minutes) * delta_minutes if delta_hours==0 else 0,
-            second = 0,
-            microsecond = 0
+            minute=(time_start.minute // delta_minutes) * delta_minutes if delta_hours == 0 else 0,
+            second=0,
+            microsecond=0
         )
 
         time_end = time_end.replace(
-            hour = time_end.hour,
-            minute = ((time_end.minute // delta_minutes) * delta_minutes) if delta_hours==0 else 0,
-            second = 0,
-            microsecond = 0
+            hour=time_end.hour,
+            minute=((time_end.minute // delta_minutes) * delta_minutes) if delta_hours == 0 else 0,
+            second=0,
+            microsecond=0
+        ) if time_end is not None else None
+        
+        hypermeteo_response = self.hypermeteo_request(
+            auth_token=auth_token,
+            lat_range=lat_range,
+            long_range=long_range,
+            time_start=time_start,
+            time_end=time_end
         )
         
-        datetime_list = []
-        if time_end is not None:
-            current_time = time_start
-            while current_time <= time_end:
-                datetime_list.append(current_time)
-                current_time += datetime.timedelta(hours=delta_hours, minutes=delta_minutes)
-        else:
-            datetime_list.append(time_start)
-
-        filename_list = []
-        for moment in datetime_list:
+        if not hypermeteo_response.ok:
+            raise _processes_utils.Handle200Exception(_processes_utils.Handle200Exception.SKIPPED, 'No data available for the requested time range')
             
-            # TODO: Check if avaliable in S3
-            
-            response = self.hypermeteo_request(
-                auth_token = auth_token,
-                lat_range = lat_range,
-                long_range = long_range,
-                time_start = moment,
-                time_end = None
-            )
-
-            netcdf_filename = _processes_utils.get_netcdf_filename(self.dataset_name, self.variable_name, lat_range, long_range, moment)
-            tmp_filename = os.path.join(self._data_folder, netcdf_filename)
-            if response.ok:
-                _processes_utils.write_file_from_response(response, tmp_filename)
-                filename_list.append(tmp_filename)
-            else:
-                print(f'[{response.status_code}] - Error during data retrieving (file "{tmp_filename}"). Server response: {response.content.decode("utf-8")}')
-
-        return filename_list
-    
-    
-    def build_dataset_for_files(self, data_filenames):
-        dss = [xr.open_dataset(df) for df in data_filenames]
-        ds = xr.concat(dss, dim='time')
-        ds = ds.assign_coords(
-            lat=np.round(ds.lat.values, 4),
-            lon=np.round(ds.lon.values, 4),
+        netcdf_filename = _processes_utils.get_netcdf_filename(
+            dataset_name = self.dataset_name, 
+            variable_name = self.variable_name, 
+            lat_range = lat_range,
+            lon_range = long_range, 
+            time_value = time_start
         )
-        ds = ds.sortby('time')
-        values = ds[self.variable_name]
-        ds = ds.drop_dims('runtime')
-        ds[self.variable_name] = values[0]
-        ds = ds.drop_vars('runtime')
+        tmp_filename = os.path.join(self._data_folder, netcdf_filename)
+        _processes_utils.write_file_from_response(hypermeteo_response, tmp_filename)
+        
+        og_ds = xr.open_dataset(tmp_filename)
+        ds = xr.Dataset(
+            {
+                self.variable_name: (["time", "lat", "lon"], og_ds[self.variable_name].values[0])   # DOC: Select data along the first element (always 1-dim related to model runtime)
+            },
+            coords={
+                "time": og_ds.time,
+                "lat": og_ds.lat.round(6),
+                "lon": og_ds.lon.round(6)
+            }
+        )
+        ds = ds.sortby(['time', 'lat', 'lon'])
+        ds[self.variable_name] = xr.where(ds[self.variable_name] < 0, 0, ds[self.variable_name])
+        ds = ds.resample(time=f'{timedelta_minutes}T').sum()
         return ds
+            
         
     
     def create_timestamp_raster(self, dataset):
@@ -275,7 +331,7 @@ class NowRadarRainfallProcessor(BaseProcessor):
             self.dataset_name, self.variable_name, 
             None,
             None,
-            (None, dataset.time.values[-1])
+            (dataset.time.values[0], None)
         )
         merged_raster_filepath = os.path.join(self._data_folder, merged_raster_filename)
         
@@ -335,20 +391,18 @@ class NowRadarRainfallProcessor(BaseProcessor):
 
         outputs = {}
         try:
-            auth_token, lat_range, long_range, time_start, time_end, time_delta, strict_time_range, out_format = self.validate_parameters(data)
+            auth_token, lat_range, long_range, time_start, time_end, time_delta, out_format = self.validate_parameters(data)
             
             # TODO: Check if strict time range is needed (then make a ping to service)
             
-            data_filenames = self.retrieve_data(
+            timeserie_dataset = self.retrieve_data(
                 auth_token = auth_token,
                 lat_range = lat_range,
                 long_range = long_range,
                 time_start = time_start,
                 time_end = time_end,
-                timedelta_minutes = time_delta  # ???: Maybe time_delta should be used in resmapling queird subset otherwis we will miss data if it is not the minimum (5min)
+                timedelta_minutes = time_delta
             )
-            
-            timeserie_dataset = self.build_dataset_for_files(data_filenames)   # TODO: Consider also already s3 uploaded file (see todo in self.retrieve_data() and workflow in hera_radar_rainfall_process.py)
             
             # Compute cumulative sum
             timeserie_dataset = _processes_utils.compute_cumsum(timeserie_dataset, self.variable_name)
@@ -389,7 +443,7 @@ class NowRadarRainfallProcessor(BaseProcessor):
             }
             raise ProcessorExecuteError(str(err))
         
-        _processes_utils.garbage_filepaths(merged_raster_filepath, data_filenames)
+        _processes_utils.garbage_folders(self._data_folder)
         
         return mimetype, outputs
 
