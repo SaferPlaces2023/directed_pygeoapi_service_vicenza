@@ -17,6 +17,15 @@ CRONEJOBS = pd.DataFrame([
         ],
     },
     {
+        'description': 'RADAR',
+        'schedule': '*/5 * * * *',
+        'script': os.path.join(INVOKE_INGESTOR_PATH, 'invoke_ingestor.py'),
+        'args': [ 
+            os.path.join(INVOKE_INGESTOR_PATH, 'invocation_data', 'radar-precipitation-process.json')
+        ],
+    },
+    
+    {
         'description': 'ICON-INGESTOR',
         'schedule': '0 */12 * * *',
         'script': os.path.join(INVOKE_INGESTOR_PATH, 'invoke_ingestor.py'),

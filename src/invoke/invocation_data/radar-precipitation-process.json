@@ -1,5 +1,5 @@
 {
-    "process": "nowradar-precipitation-process",
+    "process": "radar-precipitation-process",
     "payload": {
         "inputs": {
             "debug": true,

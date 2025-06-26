@@ -9,6 +9,7 @@ import requests
 import operator
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 import rioxarray as rxr
 
@@ -36,10 +37,10 @@ PROCESS_METADATA = {
     'version': '0.2.0',
     'id': 'safer-process',
     'title': {
-        'en': 'NowRadar Precipitation Process',
+        'en': 'Radar Rainfall Process',
     },
     'description': {
-        'en': 'NowRadar Precipitation forecast data from Hypermeteo API'
+        'en': 'Radar Rainfall forecast data from Hypermeteo API'
     },
     'jobControlOptions': ['sync-execute', 'async-execute'],
     'keywords': ['safer process'],
@@ -126,13 +127,13 @@ PROCESS_METADATA = {
     }
 }
 
-class NowRadarPrecipitationProcessor(BaseProcessor):
-    """NowRadar Precipitation Processor class"""
+class RadarPrecipitationProcessor(BaseProcessor):
+    """Radar Precipitation Processor class"""
 
     def __init__(self, processor_def):
         super().__init__(processor_def, PROCESS_METADATA)
         
-        self.dataset_name = 'NOWRADAR_ITA_1KM_5MIN'
+        self.dataset_name = 'RADAR_ITA_1KM_5MIN'
         self.variable_name = 'rainrate'
         
         self._data_provider_auth_service = 'https://api.hypermeteo.com/auth-b2b/authenticate'
@@ -172,13 +173,29 @@ class NowRadarPrecipitationProcessor(BaseProcessor):
         lat_range, long_range, time_start, time_end, _, out_format = _processes_utils.validate_parameters(data)
         
         if time_end is not None:
-            if time_start - time_end > datetime.timedelta(hours=3):
-                raise ProcessorExecuteError('Time range must be less than or equal to 3 hours')
+            if time_end >= datetime.datetime.now(tz=datetime.timezone.utc).replace(tzinfo=None):
+                raise ProcessorExecuteError('Time end must be less than current time')
+            if time_start - time_end > datetime.timedelta(days=7):
+                raise ProcessorExecuteError('Time range must be less than or equal to 7 days')
             
         time_start = time_start.replace(minute=(time_start.minute // 5) * 5, second=0, microsecond=0)
         time_end = time_end.replace(minute=(time_end.minute // 5) * 5, second=0, microsecond=0) if time_end is not None else time_start + datetime.timedelta(hours=1)
 
         return auth_token, lat_range, long_range, time_start, time_end, time_delta, out_format
+    
+    
+    def get_existing_date_datasets(self, time_start, time_end):
+        timesteps = pd.date_range(start=time_start, end=time_end, freq='5T').to_list()
+        unique_dates = sorted(list(set(ts.date() for ts in timesteps)))
+        date_dataset_filenames = [ f"{self.dataset_name}__{self.variable_name}__{unique_date.isoformat()}.nc" for unique_date in unique_dates ]
+        date_dataset_uris = [os.path.join(self.bucket_destination, filename) for filename in date_dataset_filenames]
+        date_datasets = []
+        for date_dataset_filename, date_dataset_uri in zip(date_dataset_filenames, date_dataset_uris):
+            date_dataset_filepath = _s3_utils.s3_download(date_dataset_uri, os.path.join(self._data_folder, date_dataset_filename))
+            if date_dataset_filepath is not None and os.path.exists(date_dataset_filepath):
+                date_datasets.append(xr.open_dataset(date_dataset_filepath))
+        dataset = xr.concat(date_datasets, dim='time') if len(date_datasets) > 0 else None
+        return dataset
     
     
     def hypermeteo_request(self, auth_token, lat_range, long_range, time_start, time_end=None):
@@ -203,7 +220,8 @@ class NowRadarPrecipitationProcessor(BaseProcessor):
     
     
     def retrieve_data(self, auth_token, lat_range, long_range, time_start, time_end=None, timedelta_minutes=5):
-
+        
+        # DOC: correct time_start and time_end to be multiple of timedelta_minutes
         delta_hours = timedelta_minutes // 60
         delta_minutes = (timedelta_minutes - (delta_hours * 60))
 
@@ -220,6 +238,14 @@ class NowRadarPrecipitationProcessor(BaseProcessor):
             microsecond=0
         ) if time_end is not None else None
         
+        # DOC: Look for existing datasets for the requested time range
+        existing_dataset = self.get_existing_date_datasets(time_start, time_end)
+        if existing_dataset is not None:
+            last_avaliable_time = existing_dataset.time.values[-1].astype('datetime64[ms]').item()
+            if last_avaliable_time >= time_start:
+                time_start = last_avaliable_time + datetime.timedelta(minutes=timedelta_minutes)
+        
+        # DOC: Request only necessary data from Hypermeteo API
         hypermeteo_response = self.hypermeteo_request(
             auth_token=auth_token,
             lat_range=lat_range,
@@ -241,23 +267,29 @@ class NowRadarPrecipitationProcessor(BaseProcessor):
         tmp_filename = os.path.join(self._data_folder, netcdf_filename)
         _processes_utils.write_file_from_response(hypermeteo_response, tmp_filename)
         
-        og_ds = xr.open_dataset(tmp_filename)
-        ds = xr.Dataset(
-            {
-                self.variable_name: (["time", "lat", "lon"], og_ds[self.variable_name].values[0])   # DOC: Select data along the first element (always 1-dim related to model runtime)
-            },
-            coords={
-                "time": og_ds.time,
-                "lat": og_ds.lat.round(6),
-                "lon": og_ds.lon.round(6)
-            }
-        )
+        ds = xr.open_dataset(tmp_filename)
         ds = ds.sortby(['time', 'lat', 'lon'])
         ds[self.variable_name] = xr.where(ds[self.variable_name] < 0, 0, ds[self.variable_name])
+        
+        # DOC: If there is an existing dataset, concatenate it with the new dataset
+        if existing_dataset is not None:
+            ds = xr.concat([existing_dataset, ds], dim='time')
+            ds = ds.sortby(['time', 'lat', 'lon'])
+            
+        # DOC: Updaate existing datasets for each unique date
+        unique_dates = list(set(ds.time.dt.date.values))
+        for unique_date in unique_dates:
+            unique_date_dataset = ds.sel(time=ds.time.dt.date == unique_date)
+            date_dataset_filename = f"{self.dataset_name}__{self.variable_name}__{unique_date.isoformat()}.nc"
+            date_dataset_filepath = os.path.join(self._data_folder, f"{self.dataset_name}__{self.variable_name}__{unique_date.isoformat()}.nc")
+            date_dataset_uri = os.path.join(self.bucket_destination, date_dataset_filename)
+            unique_date_dataset.to_netcdf(date_dataset_filepath)
+            _s3_utils.s3_upload(date_dataset_filepath, date_dataset_uri)
+             
+        # DOC: Return the dataset resampled to the requested time delta   
         ds = ds.resample(time=f'{timedelta_minutes}T').sum()
         return ds
             
-        
     
     def create_timestamp_raster(self, dataset):
         timestamps = [datetime.datetime.fromisoformat(str(ts).replace('.000000000','')) for ts in dataset.time.values]
@@ -266,7 +298,7 @@ class NowRadarPrecipitationProcessor(BaseProcessor):
             self.dataset_name, self.variable_name, 
             None,
             None,
-            (dataset.time.values[0], None)
+            (None, dataset.time.values[-1])
         )
         merged_raster_filepath = os.path.join(self._data_folder, merged_raster_filename)
         
@@ -322,7 +354,6 @@ class NowRadarPrecipitationProcessor(BaseProcessor):
     
     def execute(self, data):
         mimetype = 'application/json'
-        
 
         outputs = {}
         try:
@@ -381,4 +412,4 @@ class NowRadarPrecipitationProcessor(BaseProcessor):
         return mimetype, outputs
 
     def __repr__(self):
-        return f'<NowRadarPrecipitationProcessor> {self.name}'
+        return f'<RadarPrecipitationProcessor> {self.name}'
