@@ -52,7 +52,7 @@ if ingestor_process == 'dpc-radar-rainfall-process':
     end_time = round_time - datetime.timedelta(minutes = min_delay)
     runtime_params['time_range'] = [dt2iso(start_time), dt2iso(end_time)]
 
-elif ingestor_process == 'nowradar-precipitation-process':
+elif ingestor_process == 'radar-precipitation-process':
     round_time = current_utc_datetime.replace(minute=floor_to_multiple(current_utc_datetime.minute, 5), second=0, microsecond=0)
     min_delay = 10 
     start_time = round_time - datetime.timedelta(hours = 5, minutes=min_delay)
@@ -77,8 +77,9 @@ elif ingestor_process == 'meteoblue-precipitation-retriever-process':
     
 elif ingestor_process == 'nowradar-precipitation-process':
     round_time = current_utc_datetime.replace(minute=floor_to_multiple(current_utc_datetime.minute, 5), second=0, microsecond=0)
-    start_time = round_time
-    end_time = round_time + datetime.timedelta(hours = 3)
+    min_delay = 5
+    start_time = round_time - datetime.timedelta(minutes=min_delay)
+    end_time = round_time + datetime.timedelta(hours = 3, minutes=-min_delay)
     runtime_params['time_range'] = [dt2iso(start_time), dt2iso(end_time)]
     
 elif ingestor_process == 'bucket-cleaner-service':
@@ -89,7 +90,7 @@ elif ingestor_process == 'bucket-cleaner-service':
 payload['inputs'].update(runtime_params)
 
 # Setup API URL
-api_root = os.getenv("API_ROOT", "http://localhost:5002")
+api_root = os.getenv("API_ROOT", "http://localhost:80")
 execute_url = f"{api_root}/processes/{ingestor_process}/execution"
 
 logger.info(f"Ingestor process: '{execute_url}' ")

@@ -131,7 +131,7 @@ resources:
             name: saferplacesapi.MeteobluePrecipitationRetrieverProcessor
 
 
-    nowradar-rainfall-process:
+    nowradar-precipitation-process:
         type: process
         processor:
             name: saferplacesapi.NowRadarPrecipitationProcessor

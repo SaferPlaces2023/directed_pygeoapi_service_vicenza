@@ -333,7 +333,7 @@ class RadarPrecipitationProcessor(BaseProcessor):
         _ = _processes_utils.update_avaliable_data(
             provider=self.dataset_name,
             variable=self.variable_name,
-            datetimes=dataset.time.min().item(),
+            datetimes=dataset.time.max().item(),
             s3_uris=s3_uri,
             kw_features={
                 'max': dataset.isel(time=0)[self.variable_name].max(skipna=True).item(),
@@ -343,7 +343,7 @@ class RadarPrecipitationProcessor(BaseProcessor):
         _ = _processes_utils.update_avaliable_data_HIVE(        # DOC: Shoud be the only and final way
             provider=self.dataset_name,
             variable=self.variable_name,
-            datetimes=dataset.time.min().item(),
+            datetimes=dataset.time.max().item(),
             s3_uris=s3_uri,
             kw_features={
                 'max': dataset.isel(time=0)[self.variable_name].max(skipna=True).item(),
