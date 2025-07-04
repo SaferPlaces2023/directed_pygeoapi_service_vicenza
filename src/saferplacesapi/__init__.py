@@ -23,6 +23,7 @@ from .data_providers.forecast import ICON2IPrecipitationRetrieverProcessor
 from .data_providers.forecast import MeteobluePrecipitationRetrieverProcessor
 
 from .data_providers.forecast import NowRadarPrecipitationProcessor
+from .data_providers.forecast import RadarHFSPrecipitationProcessor
 
 
 # Services

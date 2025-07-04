@@ -4,3 +4,4 @@ from .icon_2I_precipitation_retriever import ICON2IPrecipitationRetrieverProcess
 from .meteoblue_precipitation_retriever import MeteobluePrecipitationRetrieverProcessor
 
 from .nowradar_precipitation_process import NowRadarPrecipitationProcessor
+from .radar_hfs_precipitation_process import RadarHFSPrecipitationProcessor

@@ -135,6 +135,12 @@ resources:
         type: process
         processor:
             name: saferplacesapi.NowRadarPrecipitationProcessor
+            
+
+    radar-hfs-precipitation-process:
+        type: process
+        processor:
+            name: saferplacesapi.RadarHFSPrecipitationProcessor
 
 
     
