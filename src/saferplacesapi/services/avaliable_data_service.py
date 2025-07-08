@@ -62,6 +62,17 @@ PROCESS_METADATA = {
                 'maxItems': 2
             }
         },
+        'group_by': {
+            'title': 'Group By',
+            'description': 'Group by columns for the output data. It should be a list of column names.',
+            'schema': {
+                'type': 'array',
+                'items': {
+                    'type': 'string'
+                },
+                'default': ['provider', 'variable']
+            }
+        },
         'debug': {
             'title': 'Debug',
             'description': 'Enable Debug mode. Can be valued as true or false',
@@ -109,12 +120,22 @@ class AvaliableDataService(BaseProcessor):
         # FIXME: This is absolutely prone to bugs and hard to mantain → time of use a Names class manager is arrived
         self.avaliable_providers = {
             'DPC': [ 'SRI' ],
-            'ARPAE_realtime': [ 'B13011', 'B13215', 'B22001', 'B22037', 'B22070' ],
-            'Meteoblue': [ 'precipitation' ],
+            'RADAR_ITA_1KM_5MIN': [ 'rainrate' ],
             'ICON_2I': [ 'precipitation' ],
-            'SWANEMR': [ 'wave_height', 'wave_height__points' ],
-            'ADRIAC': [ 'sea_level', 'sea_level__points' ],
+            'Meteoblue': [ 'precipitation' ],
+            'NOWRADAR_ITA_1KM_5MIN': [ 'rainrate' ],
+            'HFS_ITA_4KM_1H': [ 'PREC_HOURLY' ],
         }
+        
+        self.avaliable_group_by = [
+            'provider',
+            'variable',
+            'date_time',
+            
+            'date',
+            'time',
+            'provider-variable',
+        ]
 
 
 
@@ -122,6 +143,7 @@ class AvaliableDataService(BaseProcessor):
         token = data.get('token', None)
         providers = data.get('providers', None)
         time_range = data.get('time_range', None)
+        group_by = data.get('group_by', None)
 
         if token is None or token != os.getenv("INT_API_TOKEN", "token"):
             raise _processes_utils.Handle200Exception(_processes_utils.Handle200Exception.DENIED, 'ACCESS DENIED: wrong token')
@@ -179,8 +201,19 @@ class AvaliableDataService(BaseProcessor):
                 if start_time >= end_time:
                     raise ProcessorExecuteError('Invalid time_range parameter. The start time must be before the end time.')
             time_range = [start_time, end_time]
+            
+        if group_by is not None:
+            if type(group_by) is str:
+                group_by = [group_by]
+            if type(group_by) is not list:
+                raise ProcessorExecuteError('Invalid group_by parameter. Please provide a list of column names. Valid columns are: ' + ', '.join(self.avaliable_group_by))
+            for col in group_by:
+                if col not in self.avaliable_group_by:
+                    raise ProcessorExecuteError(f'Invalid group_by column: {col}. Valid columns are: ' + ', '.join(self.avaliable_group_by))
+            if len(group_by) == 0:
+                group_by = None
 
-        return providers, time_range
+        return providers, time_range, group_by
 
             
 
@@ -226,14 +259,37 @@ class AvaliableDataService(BaseProcessor):
 
 
 
-    def prepare_output(self, avaliable_data):
+    def prepare_output(self, avaliable_data, group_by):
         """
         Prepare the output data in the required format.
         """
-
-        avaliable_data['date_time'] = avaliable_data['date_time'].apply(lambda x: x.isoformat())
-        avaliable_data_list = avaliable_data.to_dict(orient='records')
-        return avaliable_data_list
+        if group_by is None:
+            avaliable_data['date_time'] = avaliable_data['date_time'].apply(lambda x: x.isoformat())
+            avaliable_data_list = avaliable_data.to_dict(orient='records')
+            return avaliable_data_list
+        else:
+            group_by_map = {
+                'provider': 'provider',
+                'variable': 'variable',
+                'date_time': 'date_time',
+                'date': avaliable_data.date_time.dt.date,
+                'time': avaliable_data.date_time.dt.time,
+                'provider-variable': avaliable_data.apply(lambda x: f"{x['provider']}__{x['variable']}", axis=1)
+            }
+            avaliable_data_groups = avaliable_data.groupby([group_by_map[col] for col in group_by])
+            avaliable_data_dict = dict()
+            for keys,group in avaliable_data_groups:
+                level = avaliable_data_dict
+                for ik, k in enumerate(keys):
+                    k = str(k)
+                    if k not in level:
+                        level[k] = dict()
+                    if ik == len(keys) - 1:
+                        group['date_time'] = group['date_time'].apply(lambda x: x.isoformat())
+                        level[k] = group.to_dict(orient='records') 
+                    else:
+                        level = level[k]
+            return avaliable_data_dict
     
 
 
@@ -243,13 +299,13 @@ class AvaliableDataService(BaseProcessor):
         outputs = {}
         try:
             # DOC: Validate parameters
-            providers, time_range = self.validate_parameters(data)
+            providers, time_range, group_by = self.validate_parameters(data)
 
             # DOC: DuckDB query avaliable data
             avaliable_data = self.query_avaliable_data(providers, time_range)
 
             # DOC: Prepare output
-            avaliable_data_out = self.prepare_output(avaliable_data)
+            avaliable_data_out = self.prepare_output(avaliable_data, group_by)
             
             outputs = {
                 'status': 'OK',
