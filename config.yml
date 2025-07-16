@@ -38,7 +38,7 @@ server:
     bind:
         host: 0.0.0.0
         port: 80
-    url: http://pygeoapi-vicenza-lb-1525442567.eu-north-1.elb.amazonaws.com/    # http://localhost:5002 
+    url: http://pygeoapi-vicenza-lb-1525442567.eu-north-1.elb.amazonaws.com/
     mimetype: application/json; charset=UTF-8
     encoding: utf-8
     gzip: false

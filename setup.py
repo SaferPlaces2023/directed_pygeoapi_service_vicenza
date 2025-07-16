@@ -1,10 +1,10 @@
 import setuptools
 
-VERSION = "0.1.3"
-PACKAGE_NAME = "saferplacesapi"
+VERSION = "0.1.5"
+PACKAGE_NAME = "directed_pygeoapi_service_vicenza"
 AUTHOR = "Valerio Luzzi, Marco Renzi"
 EMAIL = "valerio.luzzi@gecosistema.com, marco.renzi@gecosistema.com"
-GITHUB = "https://github.com/SaferPlaces2023/saferplacesapi"
+GITHUB = "https://github.com/SaferPlaces2023/directed_pygeoapi_service_vicenza"
 DESCRIPTION = "An utils functions package"
 
 setuptools.setup(
