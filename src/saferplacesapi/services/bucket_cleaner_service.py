@@ -109,20 +109,18 @@ class BucketCleanerService(BaseProcessor):
         self.bucket_destination = f'{_s3_utils._base_bucket}/__bucket-cleaner-thrashbin__' 
         
         self.allowed_directories = [
-            'ICON_2I/',
-            'SWANEMR/',
-            'ADRIAC/',
-            'Meteoblue/',
-            
-            'RADAR_HERA_150M_5MIN/',
             'DPC/',
-            'ARPAE_realtime/',
+            'RADAR_ITA_1KM_5MIN/',
+
+            'ICON_2I/',
+            'NOWRADAR_ITA_1KM_5MIN/',
+            'HFS_ITA_4KM_1H/',
+            'Meteoblue/'
         ]
         
         self.whitelist = [ ]
         self.whitecheck = [ 
-            lambda uri: '2024-08-03' in uri,    # DOC: Keep all files related to 8 August 2024
-            lambda uri: '2025-04-13' in uri,    # DOC: Keep all files related to 13 Aprile 2025
+            # lambda uri: '2024-08-03' in uri,    # DOC: Keep all files related to 8 August 2024
         ]
         
     

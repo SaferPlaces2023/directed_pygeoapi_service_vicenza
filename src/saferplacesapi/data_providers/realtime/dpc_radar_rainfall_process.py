@@ -366,7 +366,7 @@ class DPCRadarRainfallProcessor(BaseProcessor):
             }
             raise ProcessorExecuteError(str(err))
         
-        _processes_utils.garbage_filepaths(raster_filepaths, merged_raster_filepath)
+        _processes_utils.garbage_folders(self._data_folder)
         
         return mimetype, outputs
         
