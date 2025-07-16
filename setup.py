@@ -1,6 +1,6 @@
 import setuptools
 
-VERSION = "0.1.0"
+VERSION = "0.1.3"
 PACKAGE_NAME = "saferplacesapi"
 AUTHOR = "Valerio Luzzi, Marco Renzi"
 EMAIL = "valerio.luzzi@gecosistema.com, marco.renzi@gecosistema.com"
