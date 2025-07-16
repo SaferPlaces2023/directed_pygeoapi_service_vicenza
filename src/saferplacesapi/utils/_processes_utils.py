@@ -1,5 +1,7 @@
 import os
 import json
+import glob
+import shutil
 import datetime
 from filelock import FileLock
 
@@ -383,7 +385,7 @@ def update_avaliable_data(provider, variable, datetimes, s3_uris, kw_features):
             _s3_utils.s3_download(
                 _AVALIABLE_DATA_JSON_URI,
                 _AVALIABLE_DATA_JSON, 
-                remove_src=False    # DOC: -- IMPORTANT -- Do not remove the local file after download
+                remove_src=False    # DOC: -- IMPORTANT -- Do not remove the s3 file after download
             )
         
         # DOC: If exists locally (or just downloaded) otherwise create a new one
@@ -408,9 +410,9 @@ def update_avaliable_data(provider, variable, datetimes, s3_uris, kw_features):
         s3_upload_exit = _s3_utils.s3_upload(
             _AVALIABLE_DATA_JSON, 
             _AVALIABLE_DATA_JSON_URI,
-            remove_src=False    # DOC: -- IMPORTANT -- Do not remove the local file after upload
+            remove_src=True
         )
-
+    
     return s3_upload_exit == _AVALIABLE_DATA_JSON
 
 
@@ -451,7 +453,7 @@ def update_avaliable_data_HIVE(provider, variable, datetimes, s3_uris, kw_featur
                 _s3_utils.s3_download(
                     _AVALIABLE_DATA_JSON_LND_URI,
                     _AVALIABLE_DATA_JSON_LND, 
-                    remove_src=False    # DOC: -- IMPORTANT -- Do not remove the local file after download
+                    remove_src=False    # DOC: -- IMPORTANT -- Do not remove the s3 file after download
                 )
 
             # DOC: If exists locally (or just downloaded) otherwise create a new one
@@ -461,7 +463,7 @@ def update_avaliable_data_HIVE(provider, variable, datetimes, s3_uris, kw_featur
             s3_upload_exit = _s3_utils.s3_upload(
                 _AVALIABLE_DATA_JSON_LND, 
                 _AVALIABLE_DATA_JSON_LND_URI,
-                remove_src=False    # DOC: -- IMPORTANT -- Do not remove the local file after upload
+                remove_src=True
             )
 
 
@@ -469,25 +471,16 @@ def garbage_folders(*folders):
     """
     Remove all files in folders from the filesystem (but not the folder itself).
     """
-    folders = [fp if type(fp) is list else [fp] for fp in folders]
-    folders = [fp for fps in folders for fp in fps if type(fp) is str]
-    filepaths = [os.path.join(folder, f) for folder in folders for f in os.listdir(folder)]
-    garbage_filepaths(filepaths)
-
-def garbage_filepaths(*filepaths):
-    """
-    Remove the files from the filesystem.
-    """
-    filepaths = [fp if type(fp) is list else [fp] for fp in filepaths]
-    filepaths = [fp for fps in filepaths for fp in fps if type(fp) is str]
-    for filepath in filepaths:
-        if os.path.exists(filepath):
-            try:
-                if os.path.isfile(filepath):
-                    os.remove(filepath)
-                elif os.path.isdir(filepath):
-                    os.rmdir(filepath)
-            except Exception as e:
-                print(f"Error removing file {filepath}: {e}")
-        else:
-            print(f"File {filepath} does not exist, skipping removal.")
+    for folder in folders:
+        contents_fns = glob.glob(f'{folder}/*', recursive=True)
+        for content in contents_fns:
+            if os.path.isfile(content):
+                try:
+                    os.remove(content)
+                except Exception as e:
+                    print(f"Error removing file {content}: {e}")
+            elif os.path.isdir(content):
+                try:
+                    shutil.rmtree(content, ignore_errors=True)
+                except Exception as e:
+                    print(f"Error removing directory {content}: {e}")
