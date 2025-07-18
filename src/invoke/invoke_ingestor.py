@@ -85,7 +85,7 @@ elif ingestor_process == 'nowradar-precipitation-process':
 elif ingestor_process == 'radar-hfs-precipitation-process':
     round_time = current_utc_datetime.replace(minute=0, second=0, microsecond=0)
     start_time = round_time
-    end_time = round_time + datetime.timedelta(hours = 5) 
+    end_time = round_time + datetime.timedelta(hours = 60) 
     runtime_params['time_range'] = [dt2iso(start_time), dt2iso(end_time)]
     
 elif ingestor_process == 'bucket-cleaner-service':
