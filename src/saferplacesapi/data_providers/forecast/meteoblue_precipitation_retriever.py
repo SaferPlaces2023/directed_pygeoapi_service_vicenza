@@ -155,14 +155,14 @@ class MeteobluePrecipitationRetrieverProcessor(BaseProcessor):
             'basic-5min': {
                 'api_url': 'https://my.meteoblue.com/packages/basic-5min',
                 'response_data_key': 'data_xmin',
-                'init_time_frequency': f'{8}h',
+                'init_time_frequency': f'{6}h',
                 'data_folder': os.path.join(os.getcwd(), f'{self.dataset_name}_basic-5min_ingested_data'),
                 'bucket_destination': f'{_s3_utils._base_bucket}/{self.dataset_name}/basic-5min/{self.variable_name}'
             },
             'basic-1h': {
                 'api_url': 'https://my.meteoblue.com/packages/basic-1h',
                 'response_data_key': 'data_1h',
-                'init_time_frequency': f'{8}h',
+                'init_time_frequency': f'{6}h',
                 'data_folder': os.path.join(os.getcwd(), f'{self.dataset_name}_basic-1h_ingested_data'),
                 'bucket_destination': f'{_s3_utils._base_bucket}/{self.dataset_name}/basic-1h/{self.variable_name}'
             }

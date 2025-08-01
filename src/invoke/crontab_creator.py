@@ -42,14 +42,14 @@ CRONEJOBS = pd.DataFrame([
         ],
     },
     # DOC: API KEY not avaliable by now
-    # {
-    #     'description': 'METEOBLUE - basic-5min',
-    #     'schedule': '*/5 * * * *',
-    #     'script': os.path.join(INVOKE_INGESTOR_PATH, 'invoke_ingestor.py'),
-    #     'args': [ 
-    #         os.path.join(INVOKE_INGESTOR_PATH, 'invocation_data', 'meteoblue-precipitation-retriever-process.json')
-    #     ],
-    # },
+    {
+        'description': 'METEOBLUE - basic-5min',
+        'schedule': '*/5 * * * *',
+        'script': os.path.join(INVOKE_INGESTOR_PATH, 'invoke_ingestor.py'),
+        'args': [ 
+            os.path.join(INVOKE_INGESTOR_PATH, 'invocation_data', 'meteoblue-precipitation-retriever-process.json')
+        ],
+    },
     {
         'description': 'NOWRADAR',
         'schedule': '*/5 * * * *',

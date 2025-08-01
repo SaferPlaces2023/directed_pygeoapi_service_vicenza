@@ -13,7 +13,7 @@
             "lat_range": [ 45.48, 45.62 ],
             "long_range": [ 11.47, 11.62 ],
 
-            "grid_res": 1000,
+            "grid_res": 2000,
             
             "time_range": null,
             "strict_time_range": true
