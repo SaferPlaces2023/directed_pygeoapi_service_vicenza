@@ -121,6 +121,7 @@ class AvaliableDataService(BaseProcessor):
         self.avaliable_providers = {
             'DPC': [ 'SRI' ],
             'RADAR_ITA_1KM_5MIN': [ 'rainrate' ],
+            'ARPAV': ['precipitation', 'water_level'],
             'ICON_2I': [ 'precipitation' ],
             'Meteoblue': [ 'precipitation' ],
             'NOWRADAR_ITA_1KM_5MIN': [ 'rainrate' ],

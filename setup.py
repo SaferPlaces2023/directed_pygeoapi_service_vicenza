@@ -1,6 +1,6 @@
 import setuptools
 
-VERSION = "0.1.8"
+VERSION = "0.1.9"
 PACKAGE_NAME = "directed_pygeoapi_service_vicenza"
 AUTHOR = "Valerio Luzzi, Marco Renzi"
 EMAIL = "valerio.luzzi@gecosistema.com, marco.renzi@gecosistema.com"
@@ -35,6 +35,8 @@ setuptools.setup(
         "geopandas",
         "rasterio",
         "python-crontab",
-        "duckdb"
+        "duckdb",
+
+        "process-arpav-retriever[pygeoapi] @ git+https://github.com/SaferPlaces2023/process-arpav-retriever.git"
     ]
 )

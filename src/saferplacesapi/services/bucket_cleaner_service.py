@@ -111,6 +111,7 @@ class BucketCleanerService(BaseProcessor):
         self.allowed_directories = [
             'DPC/',
             'RADAR_ITA_1KM_5MIN/',
+            'ARPAV/',
 
             'ICON_2I/',
             'NOWRADAR_ITA_1KM_5MIN/',

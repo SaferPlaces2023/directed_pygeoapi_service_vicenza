@@ -112,6 +112,11 @@ resources:
         processor:
             name: saferplacesapi.RadarPrecipitationProcessor
 
+    arpav-retriever-process:
+        type: process
+        processor:
+            name: saferplacesapi.ARPAVRetrieverProcessor
+
 
 
     icon2i-precipitation-ingestor-process:
