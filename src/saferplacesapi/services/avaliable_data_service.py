@@ -298,7 +298,7 @@ class AvaliableDataService(BaseProcessor):
             "FROM read_json(?, maximum_sample_files=8, filename=false) "    # DOC: 'maximum_sample_files=N' to use only N file to infer columns // 'filename' to (not) include filename column in the output
             "ORDER BY date_time DESC, provider ASC"
         )
-        out = duckdb.execute(q, [[f'{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json']]).df()     # DOC: Use most global pattern here (unefficient, but works for now), improvements can be done later (see build_json_globs method).
+        out = duckdb.execute(q, [[f'{self.bucket_source}/year*/month*/day*/provider*/*.json']]).df()     # DOC: Use most global pattern here (unefficient, but works for now), improvements can be done later (see build_json_globs method).
 
         # Parse date_time column
         out['date_time'] = pd.to_datetime(out['date_time'])
