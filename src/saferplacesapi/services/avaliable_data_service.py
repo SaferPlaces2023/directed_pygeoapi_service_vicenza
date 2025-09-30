@@ -20,6 +20,14 @@ from saferplacesapi import _s3_utils
 from saferplacesapi import _utils
 
 
+duckdb.install_extension("httpfs")
+duckdb.load_extension("httpfs")
+
+# imposta la regione (importantissimo in deploy!)
+duckdb.sql("SET s3_region='us-east-1'")   # o la tua regione
+duckdb.sql("SET s3_use_ssl=true")         # se usi HTTPS (su AWS sì)
+
+
 # -----------------------------------------------------------------------------
 
 
@@ -298,6 +306,7 @@ class AvaliableDataService(BaseProcessor):
             "FROM read_json(?, maximum_sample_files=8, filename=false) "    # DOC: 'maximum_sample_files=N' to use only N file to infer columns // 'filename' to (not) include filename column in the output
             "ORDER BY date_time DESC, provider ASC"
         )
+        os.environ['s3_region'] = 'us-east-1'
         out = duckdb.execute(q, [[f'{self.bucket_source}/year*/month*/day*/provider*/*.json']]).df()     # DOC: Use most global pattern here (unefficient, but works for now), improvements can be done later (see build_json_globs method).
 
         # Parse date_time column
