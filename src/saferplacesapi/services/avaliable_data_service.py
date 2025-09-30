@@ -295,23 +295,25 @@ class AvaliableDataService(BaseProcessor):
 
         # DOC: [OLD-WAY] This is a temporary solution, it should be replaced with a more robust query that can handle multiple providers and time ranges (USE WHERE CLAUSE). 
         # !!!: Also, this cause error when deployed → Unkown reason, maybe due to incorrect HIVE format of the bucket source → '=' and not '==' in the path.
-        q = f"""
-            SELECT *
-            FROM read_json('{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json')
-            ORDER BY date_time DESC, provider ASC
-        """
+        # q = f"""
+        #     SELECT *
+        #     FROM read_json('{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json')
+        #     ORDER BY date_time DESC, provider ASC
+        # """
         # out = duckdb.query(q).df()
         
         # DOC: [NEW-WAY] Use read_json with patterns to query the avaliable data
         # bucket_patterns = self.build_json_globs(time_range[0], time_range[1] providers)   # !!!: Not used, it is necessary to have time ranges valued, so we have to handle it in the query.
-        # q = (
-        #     "SELECT * "
-        #     "FROM read_json(?, maximum_sample_files=8, filename=false) "    # DOC: 'maximum_sample_files=N' to use only N file to infer columns // 'filename' to (not) include filename column in the output
-        #     "ORDER BY date_time DESC, provider ASC"
-        # )
         con = get_duck()
-        out = con.sql(q).df()
+        q = (
+            "SELECT * "
+            "FROM read_json(?, maximum_sample_files=8, filename=false) "    # DOC: 'maximum_sample_files=N' to use only N file to infer columns // 'filename' to (not) include filename column in the output
+            "ORDER BY date_time DESC, provider ASC"
+        )
         # out = duckdb.execute(q, [[f'{self.bucket_source}/year*/month*/day*/provider*/*.json']]).df()     # DOC: Use most global pattern here (unefficient, but works for now), improvements can be done later (see build_json_globs method).
+        pattern = f"{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json"
+        out = con.execute(q, [pattern]).df()
+        # out = con.sql(q).df()
 
         # Parse date_time column
         out['date_time'] = pd.to_datetime(out['date_time'])
