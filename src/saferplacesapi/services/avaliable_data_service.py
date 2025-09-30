@@ -1,8 +1,11 @@
 # -----------------------------------------------------------------------------
 
+from typing import Iterable, List
+
 import os
 import logging
 import datetime
+
 
 import numpy as np
 import pandas as pd
@@ -215,6 +218,62 @@ class AvaliableDataService(BaseProcessor):
                 group_by = None
 
         return providers, time_range, group_by
+    
+    
+    # DOC: Not used by now, but (maybe ?) useful for future extensions
+    def build_json_globs(
+        self,
+        start_dt: datetime.datetime,
+        end_dt: datetime.datetime,
+        providers: Iterable[str],
+        *,
+        zero_pad: bool = True,
+    ) -> List[str]:
+        """
+        Genera i glob per una struttura tipo:
+        {bucket}/year==YYYY/month==MM/day==DD/provider==PROV/*.json
+
+        Parametri
+        ---------
+        bucket_source : base path del bucket (es. "s3://my-bucket/my-prefix")
+        start_dt, end_dt : intervallo temporale (datetime). Inclusivo su entrambe le estremità.
+                        L'iterazione è a granularità *giorno*.
+        providers : iterable di provider da includere (case-sensitive). Se vuoto -> wildcard "*".
+        zero_pad : se True, month/day sono formattati a due cifre (es. 09, 03).
+
+        Ritorna
+        -------
+        List[str] : lista di pattern glob da passare a read_json([...])
+        """
+        if end_dt < start_dt:
+            raise ValueError("end_dt deve essere >= start_dt")
+
+        # normalizza a date (granularità per cartelle è giornaliera)
+        cur = start_dt.date()
+        end = end_dt.date()
+
+        # normalizza / de-duplica providers
+        prov_list = [p for p in dict.fromkeys([str(p).strip() for p in providers]) if p]
+        use_wildcard = len(prov_list) == 0
+
+        patterns: List[str] = []
+        while cur <= end:
+            y = f"{cur.year}"
+            m = f"{cur.month:02d}" if zero_pad else f"{cur.month}"
+            d = f"{cur.day:02d}" if zero_pad else f"{cur.day}"
+
+            if use_wildcard:
+                patterns.append(
+                    f"{self.bucket_source}/year=={y}/month=={m}/day=={d}/provider==*/*.json"
+                )
+            else:
+                for prov in prov_list:
+                    patterns.append(
+                        f"{self.bucket_source}/year=={y}/month=={m}/day=={d}/provider=={prov}/*.json"
+                    )
+            cur += datetime.timedelta(days=1)
+
+        return patterns
 
             
 
@@ -223,13 +282,23 @@ class AvaliableDataService(BaseProcessor):
         Query the avaliable data from DuckDB based on the provided providers and time range exploiting hive-partitioning structure of the bucket-source folder.
         """
 
-        # TODO: This is a temporary solution, it should be replaced with a more robust query that can handle multiple providers and time ranges (USE WHERE CLAUSE).
-        q = f"""
-            SELECT *
-            FROM read_json('{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json')
-            ORDER BY date_time DESC, provider ASC
-        """
-        out = duckdb.query(q).df()
+        # DOC: [OLD-WAY] This is a temporary solution, it should be replaced with a more robust query that can handle multiple providers and time ranges (USE WHERE CLAUSE). 
+        # !!!: Also, this cause error when deployed → Unkown reason, maybe due to incorrect HIVE format of the bucket source → '=' and not '==' in the path.
+        # q = f"""
+        #     SELECT *
+        #     FROM read_json('{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json')
+        #     ORDER BY date_time DESC, provider ASC
+        # """
+        # out = duckdb.query(q).df()
+        
+        # DOC: [NEW-WAY] Use read_json with patterns to query the avaliable data
+        # bucket_patterns = self.build_json_globs(time_range[0], time_range[1] providers)   # !!!: Not used, it is necessary to have time ranges valued, so we have to handle it in the query.
+        q = (
+            "SELECT * "
+            "FROM read_json(?, maximum_sample_files=8, filename=false) "    # DOC: 'maximum_sample_files=N' to use only N file to infer columns // 'filename' to (not) include filename column in the output
+            "ORDER BY date_time DESC, provider ASC"
+        )
+        out = duckdb.execute(q, [[f'{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json']]).df()     # DOC: Use most global pattern here (unefficient, but works for now), improvements can be done later (see build_json_globs method).
 
         # Parse date_time column
         out['date_time'] = pd.to_datetime(out['date_time'])
