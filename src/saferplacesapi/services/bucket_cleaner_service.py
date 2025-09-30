@@ -121,7 +121,9 @@ class BucketCleanerService(BaseProcessor):
         
         self.whitelist = [ ]
         self.whitecheck = [ 
-            # lambda uri: '2024-08-03' in uri,    # DOC: Keep all files related to 8 August 2024
+            lambda uri: '2025-07-04' in uri,    # DOC: Keep all files related to the 2025-07-04 event
+            lambda uri: '2025-07-25' in uri,    # DOC: Keep all files related to the 2025-07-25 event
+            lambda uri: '2025-08-28' in uri,    # DOC: Keep all files related to the 2025-08-28 event
         ]
         
     
