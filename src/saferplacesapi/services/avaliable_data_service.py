@@ -18,14 +18,17 @@ from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 from saferplacesapi import _processes_utils
 from saferplacesapi import _s3_utils
 from saferplacesapi import _utils
+from functools import lru_cache
 
-
-duckdb.install_extension("httpfs")
-duckdb.load_extension("httpfs")
-
-# imposta la regione (importantissimo in deploy!)
-duckdb.sql("SET s3_region='us-east-1'")   # o la tua regione
-duckdb.sql("SET s3_use_ssl=true")         # se usi HTTPS (su AWS sì)
+@lru_cache(maxsize=1)
+def get_duck():
+    con = duckdb.connect(":memory:")
+    con.execute("INSTALL httpfs; LOAD httpfs;")
+    # IMPOSTA SOLO LA REGIONE REALE DEL BUCKET (non inventarla):
+    con.execute("SET s3_region='us-east-1'")  # <-- cambia se il bucket non è in us-east-1
+    con.execute("SET s3_url_style='vhost'")
+    con.execute("SET s3_use_ssl=true")
+    return con
 
 
 # -----------------------------------------------------------------------------
@@ -292,22 +295,23 @@ class AvaliableDataService(BaseProcessor):
 
         # DOC: [OLD-WAY] This is a temporary solution, it should be replaced with a more robust query that can handle multiple providers and time ranges (USE WHERE CLAUSE). 
         # !!!: Also, this cause error when deployed → Unkown reason, maybe due to incorrect HIVE format of the bucket source → '=' and not '==' in the path.
-        # q = f"""
-        #     SELECT *
-        #     FROM read_json('{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json')
-        #     ORDER BY date_time DESC, provider ASC
-        # """
+        q = f"""
+            SELECT *
+            FROM read_json('{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json')
+            ORDER BY date_time DESC, provider ASC
+        """
         # out = duckdb.query(q).df()
         
         # DOC: [NEW-WAY] Use read_json with patterns to query the avaliable data
         # bucket_patterns = self.build_json_globs(time_range[0], time_range[1] providers)   # !!!: Not used, it is necessary to have time ranges valued, so we have to handle it in the query.
-        q = (
-            "SELECT * "
-            "FROM read_json(?, maximum_sample_files=8, filename=false) "    # DOC: 'maximum_sample_files=N' to use only N file to infer columns // 'filename' to (not) include filename column in the output
-            "ORDER BY date_time DESC, provider ASC"
-        )
-        os.environ['s3_region'] = 'us-east-1'
-        out = duckdb.execute(q, [[f'{self.bucket_source}/year*/month*/day*/provider*/*.json']]).df()     # DOC: Use most global pattern here (unefficient, but works for now), improvements can be done later (see build_json_globs method).
+        # q = (
+        #     "SELECT * "
+        #     "FROM read_json(?, maximum_sample_files=8, filename=false) "    # DOC: 'maximum_sample_files=N' to use only N file to infer columns // 'filename' to (not) include filename column in the output
+        #     "ORDER BY date_time DESC, provider ASC"
+        # )
+        con = get_duck()
+        out = con.sql(q).df()
+        # out = duckdb.execute(q, [[f'{self.bucket_source}/year*/month*/day*/provider*/*.json']]).df()     # DOC: Use most global pattern here (unefficient, but works for now), improvements can be done later (see build_json_globs method).
 
         # Parse date_time column
         out['date_time'] = pd.to_datetime(out['date_time'])
