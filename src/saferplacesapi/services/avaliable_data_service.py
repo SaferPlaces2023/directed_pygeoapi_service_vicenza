@@ -317,7 +317,7 @@ class AvaliableDataService(BaseProcessor):
         test_bucket_source = 's3://saferplaces.co/Directed-Vicenza/process_out_test/__avaliable-data__'     # TEST: Use test bucket source to avoid issues with the real one.
         q = f"""
             SELECT *
-            FROM read_json('{self.bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}})
+            FROM read_json('{test_bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}})
             WHERE year BETWEEN 2025 AND 2025
                 AND month BETWEEN 1 AND 12
                 AND day BETWEEN 1 AND 31
