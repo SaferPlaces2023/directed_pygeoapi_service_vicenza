@@ -323,7 +323,9 @@ class AvaliableDataService(BaseProcessor):
                 AND day BETWEEN 1 AND 31
             ORDER BY date_time DESC, provider ASC
         """
-        out = duckdb.query(q).df()
+        # out = duckdb.query(q).df()
+        con = get_duck()
+        out = con.execute(q).df()
 
         # Parse date_time column
         out['date_time'] = pd.to_datetime(out['date_time'])
