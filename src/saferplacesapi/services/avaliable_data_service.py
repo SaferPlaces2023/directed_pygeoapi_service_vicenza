@@ -21,11 +21,11 @@ from saferplacesapi import _utils
 from functools import lru_cache
 
 @lru_cache(maxsize=1)
-def duckdb_connection():
-    aws_region = os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
+def get_duck():
     con = duckdb.connect(":memory:")
     con.execute("INSTALL httpfs; LOAD httpfs;")
-    con.execute(f"SET s3_region='{aws_region}'")
+    # IMPOSTA SOLO LA REGIONE REALE DEL BUCKET (non inventarla):
+    con.execute("SET s3_region='us-east-1'")  # <-- cambia se il bucket non è in us-east-1
     con.execute("SET s3_url_style='vhost'")
     con.execute("SET s3_use_ssl=true")
     return con
@@ -143,15 +143,12 @@ class AvaliableDataService(BaseProcessor):
         }
         
         self.avaliable_group_by = [
-            'day',
-            'month',
-            'year',
-            'date',
-            'time',
-            'date_time',
-            
             'provider',
             'variable',
+            'date_time',
+            
+            'date',
+            'time',
             'provider-variable',
         ]
 
@@ -318,23 +315,6 @@ class AvaliableDataService(BaseProcessor):
 
         # DOC: [NEW-WAY] Use real hive-partitioning structure of the bucket-source folder.
         test_bucket_source = 's3://saferplaces.co/Directed-Vicenza/process_out_test/__avaliable-data__'     # TEST: Use test bucket source to avoid issues with the real one.
-        
-        start_time, end_time = time_range if time_range is not None else (None, None)
-        
-        date_where_clause = ""
-        if start_time and end_time:
-            date_where_clause = f"WHERE year BETWEEN {start_time.year} AND {end_time.year} AND month BETWEEN {start_time.month} AND {end_time.month} AND day BETWEEN {start_time.day} AND {end_time.day}"
-        elif start_time:
-            date_where_clause = f"WHERE year >= {start_time.year} AND month >= {start_time.month} AND day >= {start_time.day}"
-        elif end_time:
-            date_where_clause = f"WHERE year <= {end_time.year} AND month <= {end_time.month} AND day <= {end_time.day}"
-            
-        # q = (
-        #     "SELECT * "
-        #     f"FROM read_json('{self.bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}}) "
-        #     f"{date_where_clause} "
-        #     "ORDER BY date_time DESC, provider ASC"
-        # )
         q = f"""
             SELECT *
             FROM read_json('{test_bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}})
@@ -343,8 +323,9 @@ class AvaliableDataService(BaseProcessor):
                 AND day BETWEEN 1 AND 31
             ORDER BY date_time DESC, provider ASC
         """
-        ddb_connection = duckdb_connection()
-        out = ddb_connection.execute(q).df()
+        # out = duckdb.query(q).df()
+        con = get_duck()
+        out = con.execute(q).df()
 
         # Parse date_time column
         out['date_time'] = pd.to_datetime(out['date_time'])
@@ -359,7 +340,7 @@ class AvaliableDataService(BaseProcessor):
         
         # Filter by time range
         if time_range is not None:
-            # start_time, end_time = time_range
+            start_time, end_time = time_range
             if start_time is not None:
                 out = out[out['date_time'] >= start_time]
             if end_time is not None:
@@ -385,15 +366,12 @@ class AvaliableDataService(BaseProcessor):
             return avaliable_data_list
         else:
             group_by_map = {
-                'day': 'day',
-                'month': 'month',
-                'year': 'year',
-                'date': avaliable_data.date_time.dt.date,
-                'time': avaliable_data.date_time.dt.time,
-                'date_time': 'date_time',
                 'provider': 'provider',
                 'variable': 'variable',
-                'provider-variable': avaliable_data.apply(lambda x: f"{x['provider']}__{x['variable']}", axis=1),
+                'date_time': 'date_time',
+                'date': avaliable_data.date_time.dt.date,
+                'time': avaliable_data.date_time.dt.time,
+                'provider-variable': avaliable_data.apply(lambda x: f"{x['provider']}__{x['variable']}", axis=1)
             }
             avaliable_data_groups = avaliable_data.groupby([group_by_map[col] for col in group_by])
             avaliable_data_dict = dict()
