@@ -329,13 +329,12 @@ class AvaliableDataService(BaseProcessor):
         elif end_time:
             date_where_clause = f"WHERE year <= {end_time.year} AND month <= {end_time.month} AND day <= {end_time.day}"
             
-        q = (
-            "SELECT * "
-            f"FROM read_json('{self.bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}}) "
-            # "WHERE year BETWEEN 2025 AND 2025 AND month BETWEEN 1 AND 12 AND day BETWEEN 1 AND 31 "
-            f"{date_where_clause} "
-            "ORDER BY date_time DESC, provider ASC"
-        )
+        q = f"""
+            SELECT * 
+            FROM read_json('{self.bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}})
+            {date_where_clause}
+            ORDER BY date_time DESC, provider ASC
+        """
         ddb_connection = duckdb_connection()
         out = ddb_connection.execute(q).df()
 
