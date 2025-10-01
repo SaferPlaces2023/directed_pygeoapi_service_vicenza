@@ -317,7 +317,7 @@ class AvaliableDataService(BaseProcessor):
         # out = con.execute(q, [pattern]).df()
 
         # DOC: [NEW-WAY] Use real hive-partitioning structure of the bucket-source folder.
-        # test_bucket_source = 's3://saferplaces.co/Directed-Vicenza/process_out_test/__avaliable-data__'     # TEST: Use test bucket source to avoid issues with the real one.
+        test_bucket_source = 's3://saferplaces.co/Directed-Vicenza/process_out_test/__avaliable-data__'     # TEST: Use test bucket source to avoid issues with the real one.
         
         start_time, end_time = time_range if time_range is not None else (None, None)
         
@@ -329,10 +329,18 @@ class AvaliableDataService(BaseProcessor):
         elif end_time:
             date_where_clause = f"WHERE year <= {end_time.year} AND month <= {end_time.month} AND day <= {end_time.day}"
             
+        # q = (
+        #     "SELECT * "
+        #     f"FROM read_json('{self.bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}}) "
+        #     f"{date_where_clause} "
+        #     "ORDER BY date_time DESC, provider ASC"
+        # )
         q = f"""
-            SELECT * 
-            FROM read_json('{self.bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}})
-            {date_where_clause}
+            SELECT *
+            FROM read_json('{test_bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}})
+            WHERE year BETWEEN 2025 AND 2025
+                AND month BETWEEN 1 AND 12
+                AND day BETWEEN 1 AND 31
             ORDER BY date_time DESC, provider ASC
         """
         ddb_connection = duckdb_connection()
