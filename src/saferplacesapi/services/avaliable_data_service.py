@@ -315,14 +315,31 @@ class AvaliableDataService(BaseProcessor):
 
         # DOC: [NEW-WAY] Use real hive-partitioning structure of the bucket-source folder.
         test_bucket_source = 's3://saferplaces.co/Directed-Vicenza/process_out/__avaliable-data__'     # TEST: Use test bucket source to avoid issues with the real one.
-        q = f"""
-            SELECT *
-            FROM read_json('{test_bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}})
-            WHERE year BETWEEN 2025 AND 2025
-                AND month BETWEEN 1 AND 12
-                AND day BETWEEN 1 AND 31
-            ORDER BY date_time DESC, provider ASC
-        """
+        # q = f"""
+        #     SELECT *
+        #     FROM read_json('{test_bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}})
+        #     WHERE year BETWEEN 2025 AND 2025
+        #         AND month BETWEEN 1 AND 12
+        #         AND day BETWEEN 1 AND 31
+        #     ORDER BY date_time DESC, provider ASC
+        # """
+        start_time, end_time = time_range if time_range is not None else (None, None)
+        
+        date_where_clause = ""
+        if start_time and end_time:
+            date_where_clause = f"WHERE year BETWEEN {start_time.year} AND {end_time.year} AND month BETWEEN {start_time.month} AND {end_time.month} AND day BETWEEN {start_time.day} AND {end_time.day}"
+        elif start_time:
+            date_where_clause = f"WHERE year >= {start_time.year} AND month >= {start_time.month} AND day >= {start_time.day}"
+        elif end_time:
+            date_where_clause = f"WHERE year <= {end_time.year} AND month <= {end_time.month} AND day <= {end_time.day}"
+            
+        q = (
+            "SELECT * "
+            f"FROM read_json('{self.bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}}) "
+            # "WHERE year BETWEEN 2025 AND 2025 AND month BETWEEN 1 AND 12 AND day BETWEEN 1 AND 31 "
+            f"{date_where_clause} "
+            "ORDER BY date_time DESC, provider ASC"
+        )
         # out = duckdb.query(q).df()
         con = get_duck()
         out = con.execute(q).df()
