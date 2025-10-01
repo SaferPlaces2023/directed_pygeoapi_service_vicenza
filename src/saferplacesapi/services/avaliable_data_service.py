@@ -302,18 +302,28 @@ class AvaliableDataService(BaseProcessor):
         # """
         # out = duckdb.query(q).df()
         
-        # DOC: [NEW-WAY] Use read_json with patterns to query the avaliable data
-        # bucket_patterns = self.build_json_globs(time_range[0], time_range[1] providers)   # !!!: Not used, it is necessary to have time ranges valued, so we have to handle it in the query.
-        con = get_duck()
-        q = (
-            "SELECT * "
-            "FROM read_json(?, maximum_sample_files=8, filename=false) "    # DOC: 'maximum_sample_files=N' to use only N file to infer columns // 'filename' to (not) include filename column in the output
-            "ORDER BY date_time DESC, provider ASC"
-        )
-        # out = duckdb.execute(q, [[f'{self.bucket_source}/year*/month*/day*/provider*/*.json']]).df()     # DOC: Use most global pattern here (unefficient, but works for now), improvements can be done later (see build_json_globs method).
-        pattern = f"{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json"
-        out = con.execute(q, [pattern]).df()
-        # out = con.sql(q).df()
+        # DOC: [OLD-WAY] Use read_json with patterns to query the avaliable data
+        # # bucket_patterns = self.build_json_globs(time_range[0], time_range[1] providers)   # !!!: Not used, it is necessary to have time ranges valued, so we have to handle it in the query.
+        # con = get_duck()
+        # q = (
+        #     "SELECT * "
+        #     "FROM read_json(?, maximum_sample_files=8, filename=false) "    # DOC: 'maximum_sample_files=N' to use only N file to infer columns // 'filename' to (not) include filename column in the output
+        #     "ORDER BY date_time DESC, provider ASC"
+        # )
+        # pattern = f"{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json"        # DOC: Use most global pattern here (unefficient, but works for now), improvements can be done later (see build_json_globs method).
+        # out = con.execute(q, [pattern]).df()
+
+        # DOC: [NEW-WAY] Use real hive-partitioning structure of the bucket-source folder.
+        test_bucket_source = 's3://saferplaces.co/Directed-Vicenza/process_out_test/__avaliable-data__'     # TEST: Use test bucket source to avoid issues with the real one.
+        q = f"""
+            SELECT *
+            FROM read_json('{test_bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}})
+            WHERE year BETWEEN 2025 AND 2025
+                AND month BETWEEN 1 AND 12
+                AND day BETWEEN 1 AND 31
+            ORDER BY date_time DESC, provider ASC
+        """
+        out = duckdb.query(q).df()
 
         # Parse date_time column
         out['date_time'] = pd.to_datetime(out['date_time'])
