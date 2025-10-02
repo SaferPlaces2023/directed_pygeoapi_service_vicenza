@@ -3,6 +3,7 @@
 from typing import Iterable, List
 
 import os
+import time
 import logging
 import datetime
 
@@ -18,18 +19,6 @@ from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 from saferplacesapi import _processes_utils
 from saferplacesapi import _s3_utils
 from saferplacesapi import _utils
-from functools import lru_cache
-
-@lru_cache(maxsize=1)
-def get_duck():
-    con = duckdb.connect(":memory:")
-    con.execute("INSTALL httpfs; LOAD httpfs;")
-    # IMPOSTA SOLO LA REGIONE REALE DEL BUCKET (non inventarla):
-    con.execute("SET s3_region='us-east-1'")  # <-- cambia se il bucket non è in us-east-1
-    con.execute("SET s3_url_style='vhost'")
-    con.execute("SET s3_use_ssl=true")
-    return con
-
 
 # -----------------------------------------------------------------------------
 
@@ -128,7 +117,7 @@ class AvaliableDataService(BaseProcessor):
 
     def __init__(self, processor_def):
         super().__init__(processor_def, PROCESS_METADATA)
-
+            
         self.bucket_source = f'{_s3_utils._base_bucket}/__avaliable-data__'
 
         # FIXME: This is absolutely prone to bugs and hard to mantain → time of use a Names class manager is arrived
@@ -230,119 +219,55 @@ class AvaliableDataService(BaseProcessor):
 
         return providers, time_range, group_by
     
-    
-    # DOC: Not used by now, but (maybe ?) useful for future extensions
-    def build_json_globs(
-        self,
-        start_dt: datetime.datetime,
-        end_dt: datetime.datetime,
-        providers: Iterable[str],
-        *,
-        zero_pad: bool = True,
-    ) -> List[str]:
-        """
-        Genera i glob per una struttura tipo:
-        {bucket}/year==YYYY/month==MM/day==DD/provider==PROV/*.json
-
-        Parametri
-        ---------
-        bucket_source : base path del bucket (es. "s3://my-bucket/my-prefix")
-        start_dt, end_dt : intervallo temporale (datetime). Inclusivo su entrambe le estremità.
-                        L'iterazione è a granularità *giorno*.
-        providers : iterable di provider da includere (case-sensitive). Se vuoto -> wildcard "*".
-        zero_pad : se True, month/day sono formattati a due cifre (es. 09, 03).
-
-        Ritorna
-        -------
-        List[str] : lista di pattern glob da passare a read_json([...])
-        """
-        if end_dt < start_dt:
-            raise ValueError("end_dt deve essere >= start_dt")
-
-        # normalizza a date (granularità per cartelle è giornaliera)
-        cur = start_dt.date()
-        end = end_dt.date()
-
-        # normalizza / de-duplica providers
-        prov_list = [p for p in dict.fromkeys([str(p).strip() for p in providers]) if p]
-        use_wildcard = len(prov_list) == 0
-
-        patterns: List[str] = []
-        while cur <= end:
-            y = f"{cur.year}"
-            m = f"{cur.month:02d}" if zero_pad else f"{cur.month}"
-            d = f"{cur.day:02d}" if zero_pad else f"{cur.day}"
-
-            if use_wildcard:
-                patterns.append(
-                    f"{self.bucket_source}/year=={y}/month=={m}/day=={d}/provider==*/*.json"
-                )
-            else:
-                for prov in prov_list:
-                    patterns.append(
-                        f"{self.bucket_source}/year=={y}/month=={m}/day=={d}/provider=={prov}/*.json"
-                    )
-            cur += datetime.timedelta(days=1)
-
-        return patterns
-
-            
 
     def query_avaliable_data(self, providers, time_range):
         """
         Query the avaliable data from DuckDB based on the provided providers and time range exploiting hive-partitioning structure of the bucket-source folder.
         """
 
-        # DOC: [OLD-WAY] This is a temporary solution, it should be replaced with a more robust query that can handle multiple providers and time ranges (USE WHERE CLAUSE). 
-        # !!!: Also, this cause error when deployed → Unkown reason, maybe due to incorrect HIVE format of the bucket source → '=' and not '==' in the path.
-        # q = f"""
-        #     SELECT *
-        #     FROM read_json('{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json')
-        #     ORDER BY date_time DESC, provider ASC
-        # """
-        # out = duckdb.query(q).df()
-        
-        # DOC: [OLD-WAY] Use read_json with patterns to query the avaliable data
-        # # bucket_patterns = self.build_json_globs(time_range[0], time_range[1] providers)   # !!!: Not used, it is necessary to have time ranges valued, so we have to handle it in the query.
-        # con = get_duck()
-        # q = (
-        #     "SELECT * "
-        #     "FROM read_json(?, maximum_sample_files=8, filename=false) "    # DOC: 'maximum_sample_files=N' to use only N file to infer columns // 'filename' to (not) include filename column in the output
-        #     "ORDER BY date_time DESC, provider ASC"
-        # )
-        # pattern = f"{self.bucket_source}/year==*/month==*/day==*/provider==*/*.json"        # DOC: Use most global pattern here (unefficient, but works for now), improvements can be done later (see build_json_globs method).
-        # out = con.execute(q, [pattern]).df()
-
-        # DOC: [NEW-WAY] Use real hive-partitioning structure of the bucket-source folder.
-        test_bucket_source = 's3://saferplaces.co/Directed-Vicenza/process_out/__avaliable-data__'     # TEST: Use test bucket source to avoid issues with the real one.
-        # q = f"""
-        #     SELECT *
-        #     FROM read_json('{test_bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}})
-        #     WHERE year BETWEEN 2025 AND 2025
-        #         AND month BETWEEN 1 AND 12
-        #         AND day BETWEEN 1 AND 31
-        #     ORDER BY date_time DESC, provider ASC
-        # """
         start_time, end_time = time_range if time_range is not None else (None, None)
         
         date_where_clause = ""
         if start_time and end_time:
-            date_where_clause = f"WHERE year BETWEEN {start_time.year} AND {end_time.year} AND month BETWEEN {start_time.month} AND {end_time.month} AND day BETWEEN {start_time.day} AND {end_time.day}"
+            date_where_clause = f"year BETWEEN {start_time.year} AND {end_time.year} AND month BETWEEN {start_time.month} AND {end_time.month} AND day BETWEEN {start_time.day} AND {end_time.day}"
         elif start_time:
-            date_where_clause = f"WHERE year >= {start_time.year} AND month >= {start_time.month} AND day >= {start_time.day}"
+            date_where_clause = f"year >= {start_time.year} AND month >= {start_time.month} AND day >= {start_time.day}"
         elif end_time:
-            date_where_clause = f"WHERE year <= {end_time.year} AND month <= {end_time.month} AND day <= {end_time.day}"
+            date_where_clause = f"year <= {end_time.year} AND month <= {end_time.month} AND day <= {end_time.day}"
+            
+        providers_where_clause = ""
+        if len(providers) > 0:
+            providers_list = ', '.join([f"'{provider}'" for provider in providers.keys()])
+            providers_where_clause = f"provider IN ({providers_list})"
+            
+        where_clause = " AND ".join(filter(None, [date_where_clause, providers_where_clause]))
+        if where_clause:
+            where_clause = f"WHERE {where_clause}"
             
         q = (
             "SELECT * "
             f"FROM read_json('{self.bucket_source}/year=*/month=*/day=*/provider=*/*.json', hive_partitioning = true, hive_types = {{year: INTEGER, month: INTEGER, day: INTEGER, provider: VARCHAR}}) "
-            # "WHERE year BETWEEN 2025 AND 2025 AND month BETWEEN 1 AND 12 AND day BETWEEN 1 AND 31 "
-            f"{date_where_clause} "
+            f"{where_clause} "
             "ORDER BY date_time DESC, provider ASC"
         )
-        # out = duckdb.query(q).df()
-        con = get_duck()
-        out = con.execute(q).df()
+        LOGGER.debug('\n------------- OPEN DUCKDB CONNECTION -----------------\n')
+        
+        con = duckdb.connect(":memory:")
+        con.execute("INSTALL httpfs; LOAD httpfs;")
+        con.execute("SET s3_region='us-east-1'")
+        
+        LOGGER.debug('\n------------- RUN SQL -----------------\n')
+        
+        # DOC: Before and after we set a sleep to allow server to relase GIL and return [201 + location-header] when using async-execute ... this could seems ugly asf (and yes it is) but works.
+        time.sleep(1)
+        out = con.sql(q)
+        time.sleep(1)
+        
+        LOGGER.debug('\n------------- OUT TO DF -----------------\n')
+        
+        out = out.df()
+        
+        LOGGER.debug('\n------------- DUCK DB END -----------------\n')
 
         # Parse date_time column
         out['date_time'] = pd.to_datetime(out['date_time'])
