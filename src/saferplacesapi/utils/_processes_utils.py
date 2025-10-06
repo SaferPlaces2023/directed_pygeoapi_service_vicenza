@@ -469,10 +469,10 @@ def update_avaliable_data_HIVE(provider, variable, datetimes, s3_uris, kw_featur
 
 def garbage_folders(*folders):
     """
-    Remove all files in folders from the filesystem (but not the folder itself).
+    Remove all files and subfolders in the given folders (but not the folders themselves).
     """
     for folder in folders:
-        contents_fns = glob.glob(f'{folder}/*', recursive=True)
+        contents_fns = glob.glob(f'{folder}/**/*', recursive=True)
         for content in contents_fns:
             if os.path.isfile(content):
                 try:

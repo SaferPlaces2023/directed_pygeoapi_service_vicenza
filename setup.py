@@ -1,6 +1,6 @@
 import setuptools
 
-VERSION = "1.3.2"
+VERSION = "1.3.3"
 PACKAGE_NAME = "directed_pygeoapi_service_vicenza"
 AUTHOR = "Valerio Luzzi, Marco Renzi"
 EMAIL = "valerio.luzzi@gecosistema.com, marco.renzi@gecosistema.com"
